@@ -138,4 +138,66 @@ contract('Bounties', function(accounts) {
     await bountiesInstance.cancelBounty(0, {from: accounts[0]});
     assertRevert(bountiesInstance.acceptFulfilment(0, 0, {from: accounts[0]}), "Allowed acceptance of a cancelled fulfilment.");
   });
+
+  it("Should allow a user to cancel a bounty.", async () => {
+    let time = await getCurrentTime();
+
+    await bountiesInstance.issueBounty("data", time + (dayInSeconds * 2), {from: accounts[0], value: 500000000000});
+    let tx = await bountiesInstance.cancelBounty(0, {from: accounts[0]});
+
+    assert.strictEqual(tx.receipt.logs.length, 1, "cancelBounty() call did not log 1 event");
+    assert.strictEqual(tx.logs.length, 1, "cancelBounty() call did not log 1 event");
+
+    const logBountyIssued = tx.logs[0];
+
+    assert.strictEqual(logBountyIssued.event, "BountyCancelled", "cancelBounty() call did not log event BountyCancelled.");
+    assert.strictEqual(logBountyIssued.args.bountyId.toNumber(), 0, "BountyCancelled event logged did not have expected bountyId.");
+    assert.strictEqual(logBountyIssued.args.sender, accounts[0], "BountyCancelled event logged did not have expected issuer.");
+    assert.strictEqual(logBountyIssued.args.amount.toNumber(), 500000000000, "BountyCancelled event logged did not have expected amount.");
+  });
+
+  it("Should allow a user to cancel a fulfiled but not accepted bounty.", async () => {
+    let time = await getCurrentTime();
+
+    await bountiesInstance.issueBounty("data", time + (dayInSeconds * 2), {from: accounts[0], value: 500000000000});
+    await bountiesInstance.fulfilBounty(0, "data", {from: accounts[1]});
+    let tx = await bountiesInstance.cancelBounty(0, {from: accounts[0]});
+
+    assert.strictEqual(tx.receipt.logs.length, 1, "cancelBounty() call did not log 1 event");
+    assert.strictEqual(tx.logs.length, 1, "cancelBounty() call did not log 1 event");
+
+    const logBountyIssued = tx.logs[0];
+
+    assert.strictEqual(logBountyIssued.event, "BountyCancelled", "cancelBounty() call did not log event BountyCancelled.");
+    assert.strictEqual(logBountyIssued.args.bountyId.toNumber(), 0, "BountyCancelled event logged did not have expected bountyId.");
+    assert.strictEqual(logBountyIssued.args.sender, accounts[0], "BountyCancelled event logged did not have expected issuer.");
+    assert.strictEqual(logBountyIssued.args.amount.toNumber(), 500000000000, "BountyCancelled event logged did not have expected amount.");
+  });
+
+  it("Should not allow the cancellation of a non existent bounty.", async () => {
+    let time = await getCurrentTime();
+    await bountiesInstance.issueBounty("data", time + (dayInSeconds * 2), {from: accounts[0], value: 500000000000});
+    assertRevert(bountiesInstance.cancelBounty(1, {from: accounts[0]}), "Allowed cancellation of a non existent bounty.");
+  });
+
+  it("Should not allow the cancellation of an accepted bounty.", async () => {
+    let time = await getCurrentTime();
+    await bountiesInstance.issueBounty("data", time + (dayInSeconds * 2), {from: accounts[0], value: 500000000000});
+    await bountiesInstance.fulfilBounty(0, "data", {from: accounts[1]});
+    await bountiesInstance.acceptFulfilment(0, 0, {from: accounts[0]});
+    assertRevert(bountiesInstance.cancelBounty(0, {from: accounts[0]}), "Allowed cancellation of an accepted bounty.");
+  });
+
+  it("Should not allow the cancellation of a cancelled bounty.", async () => {
+    let time = await getCurrentTime();
+    await bountiesInstance.issueBounty("data", time + (dayInSeconds * 2), {from: accounts[0], value: 500000000000});
+    await bountiesInstance.cancelBounty(0, {from: accounts[0]})
+    assertRevert(bountiesInstance.cancelBounty(0, {from: accounts[0]}), "Allowed cancellation of a cancelled bounty.");
+  });
+
+  it("Should only allow the cancellation of bounties issued by user.", async () => {
+    let time = await getCurrentTime();
+    await bountiesInstance.issueBounty("data", time + (dayInSeconds * 2), {from: accounts[0], value: 500000000000});
+    assertRevert(bountiesInstance.cancelBounty(0, {from: accounts[1]}), "Allowed cancellation of a bounty not issued by user.");
+  });
 });
